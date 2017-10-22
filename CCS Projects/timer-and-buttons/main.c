@@ -12,11 +12,13 @@
 
 
 volatile unsigned int timerCount = 0;
+volatile unsigned int displayCount = 0;
 volatile int countDown = 0;
-volatile unsigned int seconds = 0;
 volatile char button_1_press = 0;
 volatile char button_2_press = 0;
-volatile unsigned int displayCount = 0;
+volatile unsigned char seconds = 0;
+unsigned char minutes;
+unsigned char hours;
 
 void update_display();
 void draw_digit(char n);
@@ -92,7 +94,7 @@ void main(void)
     BCSCTL3 = LFXT1S0 + XCAP_3; // Set external 32.768 kHz oscillator crystal w/ 12.5 pf caps
     // Clear the timer and enable timer interrupt
     CCTL0 = CCIE;
-    TACCR0 = 0x0020;//1FFF;  // Set capture-compare value to
+    TACCR0 = 0x001F;  // Set capture-compare value to 31 (so that 32 counts occur, including 0)
     TACTL = TASSEL_2 + MC_1; // Set the timer A to SMCLK, Compare Mode to TACCR0
 
 //    UART_init();
@@ -122,17 +124,27 @@ void main(void)
         // Update the display
         if (button_1_press) // Add one minute
         {
-            seconds += horner_multiply_60(button_1_press);
+            minutes += button_1_press;
             button_1_press = 0;
         }
         if (button_2_press) // Add one hour
         {
-            seconds += horner_multiply_60(horner_multiply_60(button_2_press));
+            hours += button_2_press;
             button_2_press = 0;
         } 
-        if (seconds >= 86400)
+        if (seconds >= 60)
         {
-            seconds = 0;
+            minutes += 1;
+            seconds -= 60;
+        }
+        if (minutes >= 60)
+        {
+            hours += 1;
+            minutes -= 60;
+        }
+        if (hours == 24)
+        {
+            hours = 0;
         }
         update_display();
     }
@@ -144,12 +156,10 @@ void main(void)
 void update_display()
 {
     // Show hour then minute digits separated by ~0.25 sec
-    char hour = seconds / 3600;//divide(seconds, 3600);
-    char minute = (seconds - hour*3600) / 60; //divide( seconds - horner_multiply_60(horner_multiply_60(hour)), 60);
-    unsigned char h1 = hour/10;//divide(hour, 10);
-    unsigned char h0 = hour%10;//modulo(hour, 10);
-    unsigned char m1 = minute/10;//divide(minute, 10);
-    unsigned char m0 = minute%10;//modulo(minute, 10);
+    unsigned char h1 = hours/10;//divide(hour, 10);
+    unsigned char h0 = hours%10;//modulo(hour, 10);
+    unsigned char m1 = minutes/10;//divide(minute, 10);
+    unsigned char m0 = minutes%10;//modulo(minute, 10);
     // UARTSendArray(h1 + '0', 1);
     // UARTSendArray(h0 + '0', 1);
     // UARTSendArray(m1 + '0', 1);
@@ -158,16 +168,25 @@ void update_display()
     draw_digit( h1 );
     displayCount = 0;
     while (displayCount < 128);
+    draw_digit( 20 );
+    displayCount = 0;
+    while (displayCount < 128);
     draw_digit( h0 );
     displayCount = 0;
     while (displayCount < 256);
+    draw_digit( 12 );
+    displayCount = 0;
+    while (displayCount < 128);
     draw_digit( m1 );
+    displayCount = 0;
+    while (displayCount < 128);
+    draw_digit( 20 );
     displayCount = 0;
     while (displayCount < 128);
     draw_digit( m0 );
     displayCount = 0;
     while (displayCount < 128);
-    draw_digit(-1);
+    draw_digit( 20 );
     displayCount = 0;
     while (displayCount < 512);
 }
@@ -176,8 +195,6 @@ void draw_digit(char n)
 {
     P1OUT = 0x00;
     P2OUT = 0x00;
-    displayCount = 0;
-    while (displayCount < 128);
     switch (n)
     {
         case 0:
@@ -216,6 +233,9 @@ void draw_digit(char n)
         case 11:
             P2OUT = 0x20;
             break;
+        case 12:
+            P2OUT = 0x30;
+            break;
         default:
             break;
     }
@@ -228,7 +248,7 @@ __interrupt void Timer_A (void)
     timerCount ++;
     displayCount ++;
     countDown --;
-//    // Modulo 1024:
+    // When the timer hits 1024 that should be 1 second:
     if(timerCount == 1024)
     {
         timerCount = 0;
