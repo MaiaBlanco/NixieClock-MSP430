@@ -12,7 +12,7 @@
 
 
 volatile unsigned int timerCount = 0;
-volatile unsigned int countDown = 0;
+volatile int countDown = 0;
 volatile unsigned int seconds = 0;
 volatile char button_1_press = 0;
 volatile char button_2_press = 0;
@@ -130,6 +130,10 @@ void main(void)
             seconds += horner_multiply_60(horner_multiply_60(button_2_press));
             button_2_press = 0;
         } 
+        if (seconds >= 86400)
+        {
+            seconds = 0;
+        }
         update_display();
     }
 
@@ -223,20 +227,12 @@ __interrupt void Timer_A (void)
 {
     timerCount ++;
     displayCount ++;
-    if ( countDown > 0 )
-    {
-        countDown --;
-    }
+    countDown --;
 //    // Modulo 1024:
-    if((timerCount - ((timerCount >> 10) << 10)) == 0)
+    if(timerCount == 1024)
     {
         timerCount = 0;
-//        P1OUT ^= (LED_0);
         seconds ++;
-        if (seconds >= 86400)
-        {
-            seconds = 0;
-        }
     }
 }
 
@@ -245,7 +241,7 @@ __interrupt void Timer_A (void)
 __interrupt void Port1 (void)
 {
     P1IE = 0x00;
-    if ( countDown == 0 )
+    if ( countDown <= 0 )
     {
         if (P1IN & BTN_0)
         {
